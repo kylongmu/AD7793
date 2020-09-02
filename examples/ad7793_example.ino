@@ -22,19 +22,29 @@ barebone chip (not counting in the pullup resistors which must be present).
 */
 #include <AD7793.hpp>
 #include <SPI.h>
+#include "USB.h"
+USBCDC USBSerial;
 
 float Vref = 1.17; /* AD7783 internal reference voltage */ 
-AD7793 ad7793();
-
+AD7793 ad7793;
+SPIClass spi(FSPI);
 void setup() {
   
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial);
-  
-  unsigned char answer = ad7793.Init();   /* Initializes the AD7793 and checks if the device is present*/
+  //delay(1000);
+  //unsigned char answer = ad7793.Init();   /* Initializes the AD7793 and checks if the device is present*/
+  unsigned char answer = ad7793.begin(SS,MISO,&spi);   /* Initializes the AD7793 and checks if the device is present*/
+  //ad7793.Reset();
+  //unsigned char answerl = ad7793.GetRegisterValue(AD7793_REG_ID, 1, 1);
   Serial.print("AD7793 status = ");
   Serial.println(answer); /* Answer is 1 when the device is initialized and the ID is read and recognized */ 
   Serial.println("");
+  //USB.productName("ESP32S2-USB");
+  //USB.begin();
+  
+  //USBSerial.begin(115200);
+
 }
 
 void loop() {

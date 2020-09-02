@@ -57,15 +57,16 @@
  *                           0 - if initialization was unsuccessful.
 *******************************************************************************/
 
-unsigned char AD7793::begin(uint8_t _cs_pin, uint8_t _data_rdy_pin, SPIClass &_spi_port = SPI)
+unsigned char AD7793::begin(uint8_t _cs_pin, uint8_t _data_rdy_pin, SPIClass* _spi_port)
 {
-    spi_port = &_spi_port;
+    spi_port = _spi_port;
     cs_pin = _cs_pin;
     data_rdy_pin = _data_rdy_pin;
 
 	unsigned char status = 0x1;
 
     SPI_Init();
+    Reset(); 
     if((GetRegisterValue(AD7793_REG_ID, 1, 1) & AD7793_ID_MASK) != AD7793_ID)
 	{
 		status = 0x0;

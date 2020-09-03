@@ -27,6 +27,7 @@ barebone chip (not counting in the pullup resistors which must be present).
 //USBCDC USBSerial;
 
 unsigned long conv; /* The 24 bit output code resulting from a conversion by the ADC and read from the data register */
+
 float Vref = 1.17; /* AD7783 internal reference voltage */ 
 float GAIN; /* Gain of the AD7793 unternal instrumentation amplifier */
 float AVDD;
@@ -67,7 +68,7 @@ void loop() {
   //Serial.println(conv);  
   //if(conv&0x00800000)
     //conv|= 0xff000000;//MSB
-
+  conv = medianFilter(conv);
   Serial.write((unsigned char*)&conv,4);
   //delay(50);
 }
@@ -98,8 +99,44 @@ void AD7793_Config(){
     ad7793.Calibrate(AD7793_MODE_CAL_INT_FULL, AD7793_CH_AIN1P_AIN1M); /* Performs Internal Full Calibration to the specified channel. */
     //After calibrate, the device enter IDLE mode
     ad7793.SetMode(AD7793_MODE_CONT);  /* Continuous Conversion Mode */
-    ad7793.SetFilterUpdateRate(1);//This must be the final step.
+    ad7793.SetFilterUpdateRate(2);//242Hz with SINC4 filter, This must be the final step.
    //conv = ad7793.SingleConversion(); 
     //delay(100);
 
+}
+inline void bubbleSort(unsigned long  data[], int size)
+{
+    unsigned long temp;
+    while(size > 1)
+    {
+        for(int i = 0; i < size - 1; i++)
+        {
+            if(data[i] > data[i + 1])
+            {
+                temp = data[i];
+                data[i] = data[i + 1];
+                data[i + 1] = temp;
+            }
+        }
+        size --;
+    }
+}
+unsigned long  medianFilter(unsigned long  data)
+{
+  const unsigned char filter_size = 9;
+  static unsigned long x[filter_size];
+  unsigned long buble_data[filter_size];
+  unsigned long median;
+  unsigned char i;
+
+  for(i=0;i<filter_size-1;i++){
+    x[i] = x[i+1];
+    buble_data[i] = x[i]; 
+  }
+  x[i]= data;
+  buble_data[i] = x[i]; 
+
+  bubbleSort(buble_data,filter_size);
+
+  return (buble_data[filter_size/2+1]);
 }

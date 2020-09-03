@@ -22,10 +22,19 @@ barebone chip (not counting in the pullup resistors which must be present).
 */
 #include <AD7793.hpp>
 #include <SPI.h>
-#include "USB.h"
-USBCDC USBSerial;
+//#include "USBSerial.h"
+//#include "USB.h"
+//USBCDC USBSerial;
 
+unsigned long conv; /* The 24 bit output code resulting from a conversion by the ADC and read from the data register */
 float Vref = 1.17; /* AD7783 internal reference voltage */ 
+float GAIN; /* Gain of the AD7793 unternal instrumentation amplifier */
+float AVDD;
+float V; /* The voltage read on the analog input channel 2 (should be between -0.57 +0.57 when gain is set to 1) */
+float RREF = 4990.0; /* The reference resistor: here, 4.99 Kohm, 0.1%, 10ppm/C */
+float RRTD; /* The measured resistance of the RTD */ 
+float Temp;
+
 AD7793 ad7793;
 SPIClass spi(FSPI);
 void setup() {
@@ -44,25 +53,53 @@ void setup() {
   //USB.begin();
   
   //USBSerial.begin(115200);
-
+  //SerialUSB.begin(115200);
+  AD7793_Config();
 }
 
 void loop() {
-  
+  unsigned char status;
+  while(ad7793.GetRegisterValue(AD7793_REG_STAT, 1, 1)&AD7793_STAT_RDY){
+    delay(1);
+  }
+  conv = ad7793.ContinuousSingleRead();
+  //RRTD = RREF * (conv - 8388608.0) / (8388608.0 * GAIN); /* Computes the RTD resistance from the conversion code */
+  //Serial.println(conv);  
+  //if(conv&0x00800000)
+    //conv|= 0xff000000;//MSB
+
+  Serial.write((unsigned char*)&conv,4);
+  //delay(50);
+}
+void AD7793_Config(){
   ad7793.SetChannel(AD7793_CH_AVDD_MONITOR);  /* AVDD Monitor, gain 1/6, internal 1.17V reference */
   unsigned long conv = ad7793.SingleConversion();  /* Returns the result of a single conversion. */                                          
-  float AVDD = ((conv - 8388608.0) / 8388608.0) * 1.17 / (1/6.0) ; /* Note: 8388608 = 2exp(23) = 0x8000000 = the output code of 0 V in bipolar mode */
+  AVDD = ((conv - 8388608.0) / 8388608.0) * 1.17 / (1/6.0) ; /* Note: 8388608 = 2exp(23) = 0x8000000 = the output code of 0 V in bipolar mode */
   Serial.print("Analog supply voltage (AVDD) = ");
   Serial.print(AVDD, 4);
   Serial.println(" V");
 
   ad7793.SetChannel(AD7793_CH_TEMP); /* Temp Sensor, gain 1, Internal current reference */
   conv = ad7793.SingleConversion();  /* Returns the result of a single conversion. */
-  float Temp = (((conv - 8388608.0) / 8388608.0) * 1.17 * 1000 / 0.810) - 273;  /* Sentitivity is approximately 0.81 mV/Â°K, according to AD7793 datasheet */
+  Temp = (((conv - 8388608.0) / 8388608.0) * 1.17 * 1000 / 0.810) - 273;  /* Sentitivity is approximately 0.81 mV/Â°K, according to AD7793 datasheet */
                                                                                 /* To improve precision, it should be further calibrated by the user. */
   Serial.print("Chip temperature = ");
   Serial.print(Temp, 2);
   Serial.println(" C");
-   
-  delay(1000);
+
+    ad7793.SetChannel(AD7793_CH_AIN1P_AIN1M); /* Selects channel 1 of AD7793 */
+    ad7793.SetGain(AD7793_GAIN_1); /* Sets the gain to 1 */
+    GAIN = 1.0;
+    //ad7793.EnableUnipolar();
+    ad7793.SetClockSource(AD7793_CLK_INT);
+    ad7793.SetIntReference(AD7793_REFSEL_INT); /* Sets the reference source for the ADC. */
+    /* As the gain of the internal instrumentation amplifier has been changed, Analog Devices recommends performing a calibration  */
+    ad7793.Calibrate(AD7793_MODE_CAL_INT_ZERO, AD7793_CH_AIN1P_AIN1M); /* Performs Internal Zero calibration to the specified channel. */
+    ad7793.Calibrate(AD7793_MODE_CAL_INT_FULL, AD7793_CH_AIN1P_AIN1M); /* Performs Internal Full Calibration to the specified channel. */
+    //After calibrate, the device enter IDLE mode
+    ad7793.SetMode(AD7793_MODE_CONT);  /* Continuous Conversion Mode */
+    ad7793.SetFilterUpdateRate(1);//This must be the final step.
+   //conv = ad7793.SingleConversion(); 
+    //delay(100);
+
 }
